@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mobile Teranama</title>
+<link href="https://fonts.googleapis.com/css2?family=Abyssinica+SIL:wght@400&family=Noto+Sans+Ethiopic:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    /* 기존 레이아웃 변수 */
+    --row1-top: 31%;
+    --row2-top: 48%;
+    --row3-top: 65%;
+    --row4-top: calc(var(--row3-top) + var(--row-height));
+    --row-height: 14%;
+    --row4-height: 13%;
+    --enter-w: 25.6%; /* ≈ 2.3/9 of full width */
+    --row-bleed: 3%;
+
+    /* 모음/다음 정렬·크기 패치 변수 */
+    --vowel-size: 26px;      /* 모음(파란 글자) 기본 크기 */
+    --k-scale: 0.88;         /* K(두 글자 프리뷰) 축소 비율 */
+    --vowel-x: 0px;          /* 모음 전체 X 오프셋 */
+    --vowel-y: 6px;          /* 모음 전체 Y 오프셋(아래로 +) */
+    --next-x: -55%;        /* 다음키 X 오프셋(윗줄 7번째 칸과 정렬) */
+    --next-y: 7px;           /* 다음키 Y 오프셋 */
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:transparent;font-family:"Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif;height:100vh;display:flex;flex-direction:column}
+
+  #editor{
+    flex:1;width:100%;max-width:560px;min-height:120px;margin:16px auto 10px;padding:14px;
+    font-size:22px;line-height:1.55;word-break:break-word;background:#fff;border-radius:14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.06);outline:none;white-space: pre-wrap;position: fixed;
+    top:10px;left:0;right:0;max-width:560px;margin:auto;
+  }
+  #editor::after{
+    content:"";display:inline-block;width:2px;height:1em;background:#000;margin-left:1px;
+    animation: blink 1s steps(1) infinite;vertical-align:bottom;
+  }
+  @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
+  .frame{position:fixed;bottom:0;left:0;right:0;width:100%;aspect-ratio:375/300;background:transparent url("img/mobileframe.png") no-repeat center bottom/contain}
+  .row{position:absolute;left:0;right:0;height:calc(var(--row-height) + var(--row-bleed));margin-top:calc(var(--row-bleed)/-2);display:grid;grid-template-columns:repeat(9,1fr);place-items:center}
+  .row1{top:var(--row1-top)} .row2{top:var(--row2-top)} .row3{top:var(--row3-top)}
+  .row4{position:absolute;left:0;right:0;top:var(--row4-top);height:var(--row4-height);display:grid;grid-template-columns: calc(100% - var(--enter-w)) var(--enter-w);place-items:center}
+
+  .key{
+    background:transparent;border:none;margin:0;padding:0;width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation
+  }
+
+  /* 기본 라벨은 가볍게 — 모음/다음에서 덮어씀 */
+  .lbl{ font-weight:400 !important; font-size:26px !important; line-height:1; color:#000; pointer-events:none }
+  
+
+  .vowel .lbl{}
+  .ghost .lbl{ display:none }
+  .doubleSlot{ grid-column:7 / span 3;width:100%;height:100%;display:flex }
+  .doubleSlot .key{ width:50% }
+  .noLabel .lbl{ display:none }
+
+  /* ===== 모음/다음 굵기·크기·정렬 패치 ===== */
+
+/* K(두 글자)만 축소 */
+.key[data-role="k"] .lbl{  font-weight: 400 !important;  font-size: var(--vowel-size, 26px) !important;  transform: translate(var(--vowel-x,0), 5px) !important;  /* removed letter-spacing to match others */}
+
+/* 다음키는 축소 없이 풀 사이즈 */
+/* [교체] 기존 .key[data-role="next"] .lbl 블록 전체 교체 */
+.key[data-role="next"] .lbl{
+  font-weight: 400 !important;
+  font-size: 26px !important; /* 기본: 실제 글자 크기 */
+  transform: translate(var(--next-x, -16.7%), var(--next-y, 16px)) !important;
+  display: inline-block !important;
+  font-family: "Abyssinica SIL","Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif !important;
+  text-shadow: none; /* 기본은 가짜 볼드 해제 */
+}
+
+/* ⇆ 아이콘일 때만 크게 + 가짜 볼드 보정 */
+.key[data-role="next"] .lbl.icon{
+  font-size: 20px !important;
+  text-shadow: 0.5px 0 currentColor, -0.5px 0 currentColor,
+               0 0.5px currentColor,  0 -0.5px currentColor;
+}
+
+
+/* 모든 라벨 기본은 얇게 (이걸 기반으로 모음/다음만 볼드) */
+.lbl{
+  font-weight: 400 !important;
+  font-size: 26px !important;
+  line-height: 1;
+  font-family: "Abyssinica SIL","Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif !important;
+}
+
+/* 모음(파란 글자)만 확실히 볼드+크게+살짝 아래로 */
+.vowel .lbl{}
+
+.key[data-role="next"] .hint {
+  font-weight: 400;
+  font-size: 18px;          /* 필요하면 키우기 */
+  font-family: "Abyssinica SIL","Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif !important;
+  transform: translate(var(--vowel-x,0), 5px) !important;
+  color: #999;              /* 회색 유지 */
+}
+
+
+/* Fix vowel position (U/I/O/J/L) to align baseline with K and Next */
+.key.vowel[data-vowel] .lbl {
+  transform: translate(var(--vowel-x,0), 5px) !important;
+  display: inline-block !important;
+  font-size: var(--vowel-size, 26px) !important;
+  font-family: "Abyssinica SIL","Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif !important;
+  font-weight: 400 !important;
+}
+
+/* 확장키 우상단 점선 원 */
+.key[data-role="next"] .w-hint{position:absolute; right:18%; top:70%; transform:translateY(-50%); font-size:22px; color:#999; pointer-events:none;}
+.key[data-role="next"] { position: relative; }
+.key[data-role="next"] .hint-circle {
+  position: absolute;
+  top: 1%;
+  right: 35%;
+  font-size: 1px;
+  font-weight: 1200;
+  color: #000;
+  pointer-events: none;
+  display: block;   /* 기본 상태에서 보이게 */
+}
+
+.key[data-role="next"] .lbl { --next-x: -15%; }
+
+@media (max-width: 600px){   /* 스마트폰 폭 이하일 때만 적용 */
+  .key[data-role="next"] .lbl.icon {
+    font-size: 26px !important;       /* 모바일에서만 크게 */
+    transform: translate(-9%, 6px) !important; /* 모바일에서 위치 조정 */
+    text-shadow: 0.5px 0 currentColor, -0.5px 0 currentColor,
+                 0 0.5px currentColor,  0 -0.5px currentColor;
+  }
+}
+
+
+</style>
+
+</head>
+<body>
+  <button id="helpBtn" aria-label="도움말" style="position:fixed;right:12px;top:12px;z-index:50;border:0;background:#fff;border-radius:999px;box-shadow:0 4px 12px rgba(0,0,0,.12);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer">?</button>
+  <div id="helpModal" style="position:fixed;inset:0;background:rgba(0,0,0,.3);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:49">
+    <div style="background:#fff;border-radius:12px;max-width:420px;width:86%;box-shadow:0 20px 50px rgba(0,0,0,.2)">
+      <div style="padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+        <strong>ፈጣን መመሪያ</strong>
+        <button id="helpClose" aria-label="닫기" style="border:0;background:transparent;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:14px 16px;font-size:14px;line-height:1.6">
+        <ul style="margin:0;padding-left:18px">
+          <li>በአንድ ቁልፍ ላይ ያሉትን የኋላ ፊደሎች ለመጻፍ መጀመሪያ ያንን ቁልፍ ከዚያም መቀየር ቁልፍ (⇆) ይጫኑ።</li>
+          <li>መስፋፊያውን በተከታታይ ሁለት ጊዜ ካስጫኑ ዉ ይጻፋል።</li>
+          <li>ግራጫ ቀለም ያላቸው የሞል ቁልፎች ብቻቸውን አይገቡም። መጀመሪያ ሥር ያለውን አ (አ) ይጫኑ።</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="editor" contenteditable="true" spellcheck="false" aria-label="메모장"></div>
+
+  <div class="frame" id="kb">
+    <!-- 1행: (라벨은 참고용) -->
+    <div class="row row1">
+      <button class="key noLabel"><span class="lbl">ገጘ</span></button>
+      <button class="key noLabel"><span class="lbl">ወፀ</span></button>
+      <button class="key noLabel"><span class="lbl">የጸ</span></button>
+      <button class="key noLabel"><span class="lbl">አጰ</span></button>
+      <button class="key noLabel"><span class="lbl">ቀቐ</span></button>
+      <button class="key noLabel"><span class="lbl">ዘዠ</span></button>
+      <button class="key vowel" data-vowel="U"><span class="lbl">ኡ</span></button>
+      <button class="key vowel" data-vowel="I"><span class="lbl">ኢ</span></button>
+      <button class="key vowel" data-vowel="O"><span class="lbl">ኦ</span></button>
+    </div>
+
+    <!-- 2행 -->
+    <div class="row row2">
+      <button class="key noLabel"><span class="lbl">ተፐ</span></button>
+      <button class="key noLabel"><span class="lbl">ረፈ</span></button>
+      <button class="key noLabel"><span class="lbl">ነኘ</span></button>
+      <button class="key noLabel"><span class="lbl">መሐ</span></button>
+      <button class="key noLabel"><span class="lbl">ከኸ</span></button>
+      <button class="key noLabel"><span class="lbl">ጠጨ</span></button>
+      <button class="key vowel" data-vowel="J"><span class="lbl">ኣ</span></button>
+      <button class="key vowel" data-role="k"><span class="lbl">እ</span></button>
+      <button class="key vowel" data-vowel="L"><span class="lbl">ኤ</span></button>
+    </div>
+
+    <!-- 3행 -->
+    <div class="row row3">
+      <button class="key noLabel"><span class="lbl">ደጀ</span></button>
+      <button class="key noLabel"><span class="lbl">ሰሸ</span></button>
+      <button class="key noLabel"><span class="lbl">ለኀ</span></button>
+      <button class="key noLabel"><span class="lbl">በቨ</span></button>
+      <button class="key noLabel"><span class="lbl">ሀሠ</span></button>
+      <button class="key noLabel"><span class="lbl">ቸዐ</span></button>
+      <div class="doubleSlot">
+        <button class="key vowel ghost" data-role="next"><span class="lbl"></span><span class="w-hint"></span><span class="hint-circle">◌</span></button>		
+        <button class="key ghost" data-role="backspace"><span class="lbl"></span></button>
+      </div>
+    </div>
+
+    
+<!-- 4행: [SPACE | ENTER] -->
+    <div class="row4 noLabel">
+      <button class="key" data-role="space"><span class="lbl">Space</span></button>
+      <button class="key" data-role="enter"><span class="lbl">Enter</span></button>
+    </div>
+  </div>
+
+<script>
+
+/* ===== PC 엔진에서 가져온 규칙과 동일하게 구성 ===== */
+const out = document.getElementById('editor');
+const getText = () => out.textContent || "";
+const setText = (s) => { out.textContent = s; };
+const insert = (t) => setText(getText() + t);
+const backspace = () => setText(getText().slice(0, -1));
+const newline = () => insert("\n");
+const space = () => insert(" ");
+
+const getSeriesBase = (cp) => cp - (cp % 8);
+const isEthiopic = (cp) => (cp >= 0x1200 && cp <= 0x137F);
+
+/* 모음 인덱스 (PC와 동일) */
+const VOWEL_INDEX = { U:1, I:2, J:3, L:4, O:6, K:5 };
+
+/* w-series base */
+const wSeriesBaseMap = new Map(Object.entries({
+  "ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"
+}));
+const wBaseSet = new Set([...wSeriesBaseMap.values()]);
+
+/* next 그룹 */
+const layoutGroups = {
+  Q: ["ገ", "ጘ"], W: ["ወ","ፀ"], E: ["የ","ጸ"], R: ["አ","ጰ"], T: ["ቀ","ቐ"], Y: ["ዘ","ዠ"],
+  A: ["ተ","ፐ"], S: ["ረ","ፈ"], D: ["ነ","ኘ"], F: ["መ","ሐ"], G: ["ከ","ኸ"], H: ["ጠ","ጨ"],
+  Z: ["ደ","ጀ"], X: ["ሰ","ሸ"], C: ["ለ","ኀ"], V: ["በ","ቨ"], B: ["ሀ","ሠ"], N: ["ቸ","ዐ"]
+};
+const baseToGroup = new Map(); for (const arr of Object.values(layoutGroups)) for (const ch of arr) baseToGroup.set(ch, arr);
+
+/* 모음키 처리 */
+function onVowelKey(k){
+  let orderIndex = VOWEL_INDEX[k];
+  const prev = getText(); if (!prev) return;
+  const chars = Array.from(prev);
+  const last = chars[chars.length-1];
+  const cp = last.codePointAt(0); if(!isEthiopic(cp)) return;
+
+  let base = getSeriesBase(cp);
+  let baseChar = String.fromCodePoint(base);
+  const order = cp - base;
+
+  const inW = (order === 7) || wBaseSet.has(baseChar);
+  if (inW && k === 'O') orderIndex = 5; // wa+O → ə
+
+  chars[chars.length-1] = String.fromCodePoint(base + orderIndex);
+  setText(chars.join(""));
+}
+
+/* K: 첫 K → 5형(ə), 두 번째 K → w-series 진입(가능하면), 이미 w-series면 베이스로 */
+function onKPress(){
+  // PC=모바일: K는 5형(ə) 적용만
+  onVowelKey('K');
+}
+
+
+/* PC와 동일한 onExpandPress: 4-스테이지 순환 */
+function onExpandPress(){
+
+  const prev = getText(); if(!prev) return;
+  const chars = Array.from(prev); const i = chars.length-1;
+  const cp = chars[i].codePointAt(0); if(!isEthiopic(cp)) return;
+
+  const base = getSeriesBase(cp);
+  const order = cp - base;
+  const baseChar = String.fromCodePoint(base);
+
+  // canonical W → root 역매핑
+  const wSeriesRev = new Map(Array.from(wSeriesBaseMap.entries()).map(([k,v])=>[v,k]));
+  const rootChar = wSeriesRev.get(baseChar) || baseChar;
+
+  const group = baseToGroup.get(rootChar);
+  if(!group || group.length<2) return;
+
+  const root = group[0], sub = group[1];
+  const wBaseOf = (ch)=>{ const mapped=wSeriesBaseMap.get(ch); return mapped?mapped.codePointAt(0):(ch.codePointAt(0)+7); };
+
+  const cpBase  = root.codePointAt(0);
+  const cpSub   = sub.codePointAt(0);
+  const cpBaseW = wBaseOf(root);
+  const cpSubW  = wBaseOf(sub);
+
+  const anchors=[cpSub,cpBaseW,cpSubW,cpBase]; // 1→2→3→0
+  if (anchors.includes(cp)){
+    const idx=anchors.indexOf(cp);
+    const next=anchors[(idx+1)%anchors.length];
+    chars[i]=String.fromCodePoint(next);
+    setText(chars.join(""));
+    return;
+  }
+
+  // fallback: 모음 index/order & w-status 유지한 채 root만 교대
+  const idx = group.indexOf(rootChar);
+  const nextBaseChar = group[(idx+1)%group.length];
+  const nextBase = nextBaseChar.codePointAt(0);
+  if (order === 7){
+    const wBase = wSeriesBaseMap.get(nextBaseChar);
+    chars[i] = wBase ? wBase : String.fromCodePoint(nextBase + 7);
+  } else {
+    chars[i] = String.fromCodePoint(nextBase + order);
+  }
+  setText(chars.join(""));
+
+}
+
+/* next: 모음/wa 유지 */
+function nextTransform(){
+  const prev = getText(); if(!prev) return;
+  const chars = Array.from(prev); const i = chars.length-1;
+  const cp = chars[i].codePointAt(0); if(!isEthiopic(cp)) return;
+
+  const base = getSeriesBase(cp); const order = cp - base;
+  const baseChar = String.fromCodePoint(base);
+  const group = baseToGroup.get(baseChar); if(!group || group.length<2) return;
+  const idx = group.indexOf(baseChar);
+  const nextBaseChar = group[(idx+1)%group.length]; const nextBase = nextBaseChar.codePointAt(0);
+
+  if (order === 7){
+    const wBase = wSeriesBaseMap.get(nextBaseChar);
+    chars[i] = wBase ? wBase : String.fromCodePoint(nextBase + 7);
+  } else {
+    chars[i] = String.fromCodePoint(nextBase + order);
+  }
+  setText(chars.join(""));
+}
+
+/* ===== 모바일 버튼 연결 ===== */
+const kb = document.getElementById('kb');
+kb.addEventListener('contextmenu', e => {
+  e.preventDefault();
+});
+// 삭제키 롱프레스: pointerdown만 사용 (click에서는 실행 안 함)
+let delTimer=null, delRepeater=null, delPressed=false;
+function startDeleteRepeat(){ delPressed=true; backspace(); delTimer=setTimeout(()=>{ delRepeater=setInterval(backspace,60); },400); }
+function stopDeleteRepeat(){ delPressed=false; if(delTimer){clearTimeout(delTimer);delTimer=null;} if(delRepeater){clearInterval(delRepeater);delRepeater=null;} }
+
+kb.addEventListener('pointerdown',(e)=>{
+  const btn = e.target.closest('.key'); if(!btn) return;
+  const role = btn.dataset.role;
+  if (role === 'backspace') startDeleteRepeat();
+},{passive:true});
+kb.addEventListener('pointerup', stopDeleteRepeat, {passive:true});
+kb.addEventListener('pointercancel', stopDeleteRepeat, {passive:true});
+kb.addEventListener('pointerleave', stopDeleteRepeat, {passive:true});
+
+kb.addEventListener('click',(e)=>{
+  const btn = e.target.closest('.key'); if(!btn) return;
+  const role = btn.dataset.role;
+  if (role === 'backspace') return; // pointerdown에서 처리됨(중복 방지)
+  if (role === 'next'){ onExpandPress(); return; }
+  if (role === 'space'){ space(); return; }
+  if (role === 'enter'){ newline(); return; }
+  if (role === 'k'){ onKPress(); return; }
+
+  const vowel = btn.dataset.vowel;
+  if (vowel){ onVowelKey(vowel); return; }
+
+  const label = btn.querySelector('.lbl')?.textContent || "";
+  const chars = Array.from(label);
+  if (!chars.length) return;
+  insert(chars[0]);
+});
+</script>
+
+
+
+<script>
+// ===== PREVIEW MODULE (self-contained, no overlap) =====
+(function(){
+  const out = document.getElementById('editor');
+  const kb  = document.getElementById('kb');
+  if(!out || !kb) return;
+
+  // Local helpers (do not rely on outer closures)
+  const VOWEL_INDEX = { U:1, I:2, J:3, L:4, O:6, K:5 };
+  const isEth = (cp)=> cp>=0x1200 && cp<=0x137F;
+  const baseOf = (cp)=> cp - (cp % 8);
+
+  // w-series maps (canonical W roots)
+  const wSeriesBaseMap = new Map(Object.entries({
+    "ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"
+  }));
+  const wBaseSet = new Set([...wSeriesBaseMap.values()]);
+
+  // NEXT groups (same layout as engine)
+  const layoutGroups = {
+    Q: ["ገ", "ጘ"], W: ["ወ","ፀ"], E: ["የ","ጸ"], R: ["አ","ጰ"], T: ["ቀ","ቐ"], Y: ["ዘ","ዠ"],
+    A: ["ተ","ፐ"], S: ["ረ","ፈ"], D: ["ነ","ኘ"], F: ["መ","ሐ"], G: ["ከ","ኸ"], H: ["ጠ","ጨ"],
+    Z: ["ደ","ጀ"], X: ["ሰ","ሸ"], C: ["ለ","ኀ"], V: ["በ","ቨ"], B: ["ሀ","ሠ"], N: ["ቸ","ዐ"]
+  };
+  const baseToGroup = new Map(); for (const arr of Object.values(layoutGroups)) for (const ch of arr) baseToGroup.set(ch, arr);
+
+  // Utility: find last Ethiopic char in editor
+  function last(){
+    const t = out.textContent || "እ";
+    const arr = Array.from(t);
+    for (let i=arr.length-1; i>=0; i--){
+      const cp = arr[i].codePointAt(0);
+      if (isEth(cp)) return arr[i];
+    }
+    return null;
+  }
+  const endsWS = ()=> /\s$/.test(out.textContent||"");
+
+  // Compute NEXT preview character per 4-stage cycle (anchors only); else null (inactive)
+  function nextCycleChar(ch){
+    const cp = ch.codePointAt(0);
+    const base = baseOf(cp);
+    const baseChar = String.fromCodePoint(base);
+
+    // reverse canonical W base back to its root for grouping
+    const wSeriesRev = new Map(Array.from(wSeriesBaseMap.entries()).map(([k,v])=>[v,k]));
+    const rootChar = wSeriesRev.get(baseChar) || baseChar;
+
+    const group = baseToGroup.get(rootChar); if(!group || group.length<2) return null;
+    const root = group[0], sub = group[1];
+
+    const cpBase  = root.codePointAt(0);
+    const cpSub   = sub.codePointAt(0);
+    const cpBaseW = (wSeriesBaseMap.get(root) || String.fromCodePoint(cpBase + 7)).codePointAt(0);
+    const cpSubW  = (wSeriesBaseMap.get(sub ) || String.fromCodePoint(cpSub  + 7)).codePointAt(0);
+    const anchors = [cpSub, cpBaseW, cpSubW, cpBase]; // 1 → 2 → 3 → 0
+
+    if (!anchors.includes(cp)) return null;
+    const idx = anchors.indexOf(cp);
+    const next = anchors[(idx+1)%anchors.length];
+    return String.fromCodePoint(next);
+  }
+
+  function setText(sel, s){
+    const el = kb.querySelector(sel);
+    if (el) el.textContent = s;
+  }
+  function setColor(sel, c){
+    const el = kb.querySelector(sel);
+    if (el) el.style.color = c;
+  }
+
+  // Vowel/K preview calculators
+  function vowelPreview(ch, key){
+    let ord = VOWEL_INDEX[key];
+    const cp = ch.codePointAt(0);
+    const base = baseOf(cp);
+    const order = cp - base;
+    const baseChar = String.fromCodePoint(base);
+    const inW = (order===7) || wBaseSet.has(baseChar);
+    if (inW && key==='O') ord = 5; // w+O => ə
+    return String.fromCodePoint(base + ord);
+  }
+  function kPreview(ch){
+    const base = baseOf(ch.codePointAt(0));
+    return String.fromCodePoint(base + 5); // single ə preview
+  }
+
+  // Defaults cache (to reset when no target)
+  const defaults = {};
+  function cacheDefault(sel, fallback){
+    const el = kb.querySelector(sel);
+    if (!el) return;
+    defaults[sel] = el.textContent || fallback || '';
+  }
+  cacheDefault('[data-role="next"] .lbl', '⇆');
+  cacheDefault('[data-role="k"] .lbl', 'K');
+  ['U','I','O','J','L'].forEach(ch => cacheDefault(`[data-vowel="${ch}"] .lbl`, ch));
+
+  function resetPreviewsToDefault(){
+    setText('[data-role="next"] .lbl', '⇆'); setColor('[data-role="next"] .lbl', '#999');
+    setText('[data-role="k"] .lbl', defaults['[data-role="k"] .lbl'] || 'K'); setColor('[data-role="k"] .lbl', '#999');
+    ['U','I','O','J','L'].forEach(k => { setText(`[data-vowel="${k}"] .lbl`, defaults[`[data-vowel="${k}"] .lbl`] || k); setColor(`[data-vowel="${k}"] .lbl`, '#999'); });
+    const h = kb.querySelector('[data-role="next"] .hint-circle'); if (h) h.style.display = 'block';
+  }
+
+  
+function updatePreviews(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if(!kb || !out) return;
+
+  const isEth = (cp)=> cp>=0x1200 && cp<=0x137F;
+  const baseOf = (cp)=> cp - (cp % 8);
+  const VOWEL_INDEX = { U:1, I:2, J:3, L:4, O:6, K:5 };
+  const wSeriesBaseMap = new Map(Object.entries({"ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"}));
+  const wBaseSet = new Set([...wSeriesBaseMap.values()]);
+
+  const t = out.textContent || "እ";
+  const arr = Array.from(t);
+  let ch = null;
+  for (let i=arr.length-1;i>=0;i--){
+    const cp = arr[i].codePointAt(0);
+    if (isEth(cp)){ ch = arr[i]; break; }
+  }
+  const endsWS = /\s$/.test(t);
+
+  const targets = {
+    next: { text: "⇆", color: "#999", hint: true },
+    K: { text: "K", color: "#999" },
+    U: { text: "U", color: "#999" },
+    I: { text: "I", color: "#999" },
+    O: { text: "O", color: "#999" },
+    J: { text: "J", color: "#999" },
+    L: { text: "L", color: "#999" }
+  };
+
+  if (!ch || endsWS){
+    const setText = (sel, s)=>{ const el = kb.querySelector(sel); if (el) el.textContent = s; };
+    const setColor = (sel, c)=>{ const el = kb.querySelector(sel); if (el) el.style.color = c; };
+    setText('[data-role="next"] .lbl', targets.next.text); setColor('[data-role="next"] .lbl', targets.next.color);
+    { // ⇆일 때만 아이콘 클래스 부여
+  const el = kb.querySelector('[data-role="next"] .lbl');
+  if (el){
+    if (targets.next.text === '⇆'){ el.classList.add('icon'); }
+    else { el.classList.remove('icon'); }
+  }
+}
+
+	const hint = kb.querySelector('[data-role="next"] .hint-circle'); if (hint) hint.style.display = targets.next.hint ? 'block' : 'none';
+    setText('[data-role="k"] .lbl', targets.K.text); setColor('[data-role="k"] .lbl', targets.K.color);
+    ['U','I','O','J','L'].forEach(k => {
+      setText(`[data-vowel="${k}"] .lbl`, targets[k].text);
+      setColor(`[data-vowel="${k}"] .lbl`, targets[k].color);
+    });
+    return;
+  }
+
+  const cp = ch.codePointAt(0);
+  const base = baseOf(cp);
+  const order = cp - base;
+  const baseChar = String.fromCodePoint(base);
+
+  const canonicalW = new Set(["ጐ","ቈ","ቘ","ኰ","ኈ"]);
+  const isCanonical = canonicalW.has(baseChar);
+  const inW = (order===7) || wBaseSet.has(baseChar);
+  const isSynthetic = (order===7) && !isCanonical;
+
+  (function(){
+    const layoutGroups = {
+      Q: ["ገ", "ጘ"], W: ["ወ","ፀ"], E: ["የ","ጸ"], R: ["አ","ጰ"], T: ["ቀ","ቐ"], Y: ["ዘ","ዠ"],
+      A: ["ተ","ፐ"], S: ["ረ","ፈ"], D: ["ነ","ኘ"], F: ["መ","ሐ"], G: ["ከ","ኸ"], H: ["ጠ","ጨ"],
+      Z: ["ደ","ጀ"], X: ["ሰ","ሸ"], C: ["ለ","ኀ"], V: ["በ","ቨ"], B: ["ሀ","ሠ"], N: ["ቸ","ዐ"]
+    };
+    const baseToGroup = new Map(); for (const arr of Object.values(layoutGroups)) for (const ch of arr) baseToGroup.set(ch, arr);
+    const wSeriesBaseMap = new Map(Object.entries({"ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"}));
+    const wSeriesRev = new Map(Array.from(wSeriesBaseMap.entries()).map(([k,v])=>[v,k]));
+    const rootChar = wSeriesRev.get(baseChar) || baseChar;
+    const group = baseToGroup.get(rootChar);
+    if (group && group.length>=2){
+      const root = group[0], sub = group[1];
+      const wBaseOf = (ch)=>{ const mapped=wSeriesBaseMap.get(ch); return mapped?mapped.codePointAt(0):(ch.codePointAt(0)+7); };
+      const cpBase  = root.codePointAt(0);
+      const cpSub   = sub.codePointAt(0);
+      const cpBaseW = wBaseOf(root);
+      const cpSubW  = wBaseOf(sub);
+      const anchors=[cpSub,cpBaseW,cpSubW,cpBase];
+      if (anchors.includes(cp)){
+        const idx=anchors.indexOf(cp);
+        const next=anchors[(idx+1)%anchors.length];
+        targets.next = { text: String.fromCodePoint(next), color: "#1a73e8", hint: false };
+      } else {
+        targets.next = { text: "⇆", color: "#999", hint: true };
+      }
+    }
+  })();
+
+  targets.K = { text: String.fromCodePoint(base + 5), color: "#1a73e8" };
+
+  const computeVowel = (key)=>{
+    let ord = VOWEL_INDEX[key];
+    if (inW && key === 'O') ord = 5;
+    return String.fromCodePoint(base + ord);
+  };
+  const VOWELS = ['U','I','O','J','L'];
+  VOWELS.forEach(k => targets[k] = { text: computeVowel(k), color: "#1a73e8" });
+
+  if (isSynthetic){
+    VOWELS.forEach(k => targets[k].text = '');
+    targets.K.text = defaults ? defaults.K : 'እ';
+  }
+
+  const setText = (sel, s)=>{ const el = kb.querySelector(sel); if (el) el.textContent = s; };
+  const setColor = (sel, c)=>{ const el = kb.querySelector(sel); if (el) el.style.color = c; };
+
+  setText('[data-role="next"] .lbl', targets.next.text); setColor('[data-role="next"] .lbl', targets.next.color);
+  const hint = kb.querySelector('[data-role="next"] .hint-circle'); if (hint) hint.style.display = targets.next.hint ? 'block' : 'none';
+
+  setText('[data-role="k"] .lbl', targets.K.text); if (targets.K.text!=='K') setColor('[data-role="k"] .lbl', targets.K.color);
+
+  VOWELS.forEach(k => {
+    setText(`[data-vowel="${k}"] .lbl`, targets[k].text);
+    if (targets[k].text===''){
+      // blank: no color change
+    } else {
+      setColor(`[data-vowel="${k}"] .lbl`, targets[k].color);
+    }
+  });
+}
+// NEXT
+    const next = nextCycleChar(ch);
+    if (next){
+      setText('[data-role="next"] .lbl', next); setColor('[data-role="next"] .lbl', '#1a73e8');
+      const h = kb.querySelector('[data-role="next"] .hint-circle'); if (h) h.style.display = 'none';
+    }else{
+      setText('[data-role="next"] .lbl', '⇆'); setColor('[data-role="next"] .lbl', '#999');
+      const h = kb.querySelector('[data-role="next"] .hint-circle'); if (h) h.style.display = 'block';
+    }
+
+    // K (always base + 5)
+    const cp = ch.codePointAt(0); const base = baseOf(cp);
+    setText('[data-role="k"] .lbl', String.fromCodePoint(base + 5)); setColor('[data-role="k"] .lbl', '#1a73e8');
+
+    // Vowels (force set each time)
+    const VOWELS = ['U','I','O','J','L'];
+    VOWELS.forEach(k => {
+      let ord = VOWEL_INDEX[k];
+      const order = cp - base;
+      const baseChar = String.fromCodePoint(base);
+      const inW = (order===7) || wBaseSet.has(baseChar);
+      if (inW && k==='O') ord = 5; // w+O => ə
+      const glyph = String.fromCodePoint(base + ord);
+      setText(`[data-vowel="${k}"] .lbl`, glyph);
+      setColor(`[data-vowel="${k}"] .lbl`, '#1a73e8');
+    });
+
+    // Blanking rules (apply AFTER setting text)
+    const baseChar = String.fromCodePoint(base);
+    const canonicalW = new Set(["ጐ","ቈ","ቘ","ኰ","ኈ"]);
+    const isCanonical = canonicalW.has(baseChar);
+    const isSynthetic = ((cp - base)===7) && !isCanonical;
+    if (isSynthetic){
+      ['U','I','L','K','O'].forEach(k=> setText(`[data-vowel="${k}"] .lbl`, ''));
+    } else if (((cp - base)===7) || wBaseSet.has(baseChar)){
+      ['U','I','J','L'].forEach(k=> setText(`[data-vowel="${k}"] .lbl`, ''));
+    }
+    
+  }
+
+  // Wire events
+  function safeUpdate(){ try{ updatePreviews(); }catch(e){} }
+  window.addEventListener('load', safeUpdate);
+  kb.addEventListener('click', ()=> setTimeout(safeUpdate, 0));
+  kb.addEventListener('pointerdown', ()=> setTimeout(safeUpdate, 0));
+  kb.addEventListener('pointerup', ()=> setTimeout(safeUpdate, 0));
+
+  // Expose for debugging
+  window.updatePreviews = updatePreviews;
+})();
+
+
+(function(){
+  const kb = document.getElementById('kb');
+  function safe(){ try{ updatePreviews(); }catch(e){} }
+  if (kb){
+    kb.addEventListener('pointerdown', safe);
+    kb.addEventListener('pointermove', safe);
+    kb.addEventListener('pointerup',   safe);
+    kb.addEventListener('click',       ()=> setTimeout(safe,0));
+  }
+  window.addEventListener('load', safe);
+})();
+
+</script>
+
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  const isEth = (cp)=> cp>=0x1200 && cp<=0x137F;
+  const baseOf = (cp)=> cp - (cp % 8);
+  const VOWEL_INDEX = { U:1, I:2, J:3, L:4, O:6, K:5 };
+
+  // Canonical W series roots & bases
+  const wSeriesBaseMap = new Map(Object.entries({"ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"}));
+  const wBaseSet = new Set([...wSeriesBaseMap.values()]);
+  const canonicalW = new Set(["ጐ","ቈ","ቘ","ኰ","ኈ"]);
+
+  // Cache initial DOM labels (Ethiopic glyphs) for idle defaults
+  const defaults = {
+    next: (kb.querySelector('[data-role="next"] .lbl') || {textContent:"⇆"}).textContent || "⇆",
+    K:    (kb.querySelector('[data-role="k"] .lbl')    || {textContent:"K"}).textContent || "እ",
+    U:    (kb.querySelector('[data-vowel="U"] .lbl')   || {textContent:"U"}).textContent || "U",
+    I:    (kb.querySelector('[data-vowel="I"] .lbl')   || {textContent:"I"}).textContent || "I",
+    O:    (kb.querySelector('[data-vowel="O"] .lbl')   || {textContent:"O"}).textContent || "O",
+    J:    (kb.querySelector('[data-vowel="J"] .lbl')   || {textContent:"J"}).textContent || "J",
+    L:    (kb.querySelector('[data-vowel="L"] .lbl')   || {textContent:"L"}).textContent || "L"
+  };
+
+  // NEXT groups (anchors)
+  const layoutGroups = {
+    Q: ["ገ","ጘ"], W: ["ወ","ፀ"], E: ["የ","ጸ"], R: ["አ","ጰ"], T: ["ቀ","ቐ"], Y: ["ዘ","ዠ"],
+    A: ["ተ","ፐ"], S: ["ረ","ፈ"], D: ["ነ","ኘ"], F: ["መ","ሐ"], G: ["ከ","ኸ"], H: ["ጠ","ጨ"],
+    Z: ["ደ","ጀ"], X: ["ሰ","ሸ"], C: ["ለ","ኀ"], V: ["በ","ቨ"], B: ["ሀ","ሠ"], N: ["ቸ","ዐ"]
+  };
+  const baseToGroup = new Map(); for (const arr of Object.values(layoutGroups)) for (const c of arr) baseToGroup.set(c, arr);
+  const wRev = new Map(Array.from(wSeriesBaseMap.entries()).map(([k,v])=>[v,k]));
+
+  function lastEth(){
+    const t = out.textContent || "እ"; const arr = Array.from(t);
+    for (let i=arr.length-1;i>=0;i--){ const cp = arr[i].codePointAt(0); if (isEth(cp)) return arr[i]; }
+    return null;
+  }
+
+  function computeTargets(){
+    const t = out.textContent || "እ";
+    const endsWS = /\s$/.test(t);
+    const ch = lastEth();
+
+    // defaults (gray)
+    const targets = {
+      next: { text: "⇆", color: "#999", hint: true },
+      K: { text: "K", color: "#999" },
+      U: { text: "U", color: "#999" },
+      I: { text: "I", color: "#999" },
+      O: { text: "O", color: "#999" },
+      J: { text: "J", color: "#999" },
+      L: { text: "L", color: "#999" }
+    };
+    if (!ch || endsWS){
+      // paint defaults (Ethiopic) for idle, not roman placeholders
+      targets.next.text = defaults.next; targets.K.text = defaults ? defaults.K : 'እ';
+      targets.U.text = defaults.U; targets.I.text = defaults.I; targets.O.text = defaults.O;
+      targets.J.text = defaults.J; targets.L.text = defaults.L;
+      // keep them gray
+      targets.next.color = '#999'; targets.K.color = '#999';
+      targets.U.color = targets.I.color = targets.O.color = targets.J.color = targets.L.color = '#999';
+      return targets;
+    }
+
+    const cp = ch.codePointAt(0);
+    const base = baseOf(cp);
+    const order = cp - base;
+    const baseChar = String.fromCodePoint(base);
+    const inW = (order===7) || wBaseSet.has(baseChar);
+    const isSynthetic = (order===7) && !canonicalW.has(baseChar);
+
+    // NEXT (anchors only)
+    (function(){
+      const rootChar = wRev.get(baseChar) || baseChar;
+      const group = baseToGroup.get(rootChar);
+      if (group && group.length>=2){
+        const root = group[0], sub = group[1];
+        const wBaseOf = (c)=>{ const m=wSeriesBaseMap.get(c); return m?m.codePointAt(0):(c.codePointAt(0)+7); };
+        const cpBase  = root.codePointAt(0);
+        const cpSub   = sub.codePointAt(0);
+        const cpBaseW = wBaseOf(root);
+        const cpSubW  = wBaseOf(sub);
+        const anchors=[cpSub,cpBaseW,cpSubW,cpBase];
+        if (anchors.includes(cp)){
+          const next = anchors[(anchors.indexOf(cp)+1)%anchors.length];
+          targets.next = { text: String.fromCodePoint(next), color: "#1a73e8", hint: false };
+        } else {
+          targets.next = { text: "⇆", color: "#999", hint: true };
+        }
+      }
+    })();
+
+    // K (single ə)
+    targets.K = { text: String.fromCodePoint(base + 5), color: "#1a73e8" };
+
+    // Vowels
+    const VOWELS = ['U','I','O','J','L'];
+    const computeVowel = (key)=>{
+      let ord = VOWEL_INDEX[key];
+      if (inW && key==='O') ord = 5; // W+O => ə
+      return String.fromCodePoint(base + ord);
+    };
+    VOWELS.forEach(k => targets[k] = { text: computeVowel(k), color: "#1a73e8" });
+
+    // Rule #1: Synthetic W (+7 only) => blank ALL vowels + K
+    if (isSynthetic){ VOWELS.forEach(k => targets[k].text = ''); targets.K.text = ''; }
+
+    // Rule #2: Canonical W-series => show ALL vowels (no blanking)
+
+    return targets;
+  }
+
+  function paint(tg){
+    const setText = (sel, s)=>{ const el = kb.querySelector(sel); if (el) el.textContent = s; };
+    const setColor= (sel, c)=>{ const el = kb.querySelector(sel); if (el) el.style.color = c; };
+
+    setText('[data-role="next"] .lbl', tg.next.text);
+    { const el = kb.querySelector('[data-role="next"] .lbl'); if (el) el.style.color = tg.next.color || '#999'; }
+    const hint = kb.querySelector('[data-role="next"] .hint-circle'); if (hint) hint.style.display = tg.next.hint ? 'block' : 'none';
+{ // ⇆일 때만 아이콘 클래스 부여
+  const el = kb.querySelector('[data-role="next"] .lbl');
+  if (el){
+    if (tg.next.text === '⇆'){ el.classList.add('icon'); }
+    else { el.classList.remove('icon'); }
+  }
+}
+    
+	const wh = kb.querySelector('[data-role=\"next\"] .w-hint'); if (wh) wh.style.display = tg.next.hint ? 'block' : 'none';
+    setText('[data-role="k"] .lbl', tg.K.text);
+    { const el = kb.querySelector('[data-role="k"] .lbl'); if (el) el.style.color = tg.K.color || '#999'; }
+    ['U','I','O','J','L'].forEach(k => { setText(`[data-vowel="${k}"] .lbl`, tg[k].text); { const el = kb.querySelector(`[data-vowel=\"${k}\"] .lbl`); if (el) el.style.color = (tg.isIdle ? '#999' : '#1a73e8'); }if (tg[k].text) setColor(`[data-vowel="${k}"] .lbl`, tg[k].color); });
+  }
+
+  function updatePreviews(){
+    paint(computeTargets());
+  }
+
+  function safe(){ try{ updatePreviews(); }catch(e){} }
+
+  window.addEventListener('load', safe);
+  kb.addEventListener('click', ()=> setTimeout(safe, 0));
+  kb.addEventListener('pointerup', ()=> setTimeout(safe, 0));
+
+  // debug
+  window.updatePreviews = updatePreviews;
+})();
+</script>
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  const isEth = (cp)=> cp>=0x1200 && cp<=0x137F;
+  const baseOf = (cp)=> cp - (cp % 8);
+
+  // W-series maps (canonical)
+  const wSeriesBaseMap = new Map(Object.entries({"ገ":"ጐ","ቀ":"ቈ","ቐ":"ቘ","ከ":"ኰ","ኀ":"ኈ"}));
+  const wSeriesRev = new Map(Array.from(wSeriesBaseMap.entries()).map(([k,v])=>[v,k]));
+
+  // layout groups for anchor cycle
+  const layoutGroups = {
+    Q: ["ገ","ጘ"], W: ["ወ","ፀ"], E: ["የ","ጸ"], R: ["አ","ጰ"], T: ["ቀ","ቐ"], Y: ["ዘ","ዠ"],
+    A: ["ተ","ፐ"], S: ["ረ","ፈ"], D: ["ነ","ኘ"], F: ["መ","ሐ"], G: ["ከ","ኸ"], H: ["ጠ","ጨ"],
+    Z: ["ደ","ጀ"], X: ["ሰ","ሸ"], C: ["ለ","ኀ"], V: ["በ","ቨ"], B: ["ሀ","ሠ"], N: ["ቸ","ዐ"]
+  };
+  const baseToGroup = new Map(); for (const arr of Object.values(layoutGroups)) for (const c of arr) baseToGroup.set(c, arr);
+
+  function lastEth(){
+    const t = out.textContent || "እ"; const arr = Array.from(t);
+    for (let i=arr.length-1;i>=0;i--){ const cp = arr[i].codePointAt(0); if (isEth(cp)) return arr[i]; }
+    return null;
+  }
+
+  function cycleAnchorOnce(){
+    const t = out.textContent || "እ"; if (!t) return;
+    const arr = Array.from(t); const i = arr.length-1;
+    const ch = lastEth(); if (!ch) return;
+    const cp = ch.codePointAt(0);
+    if (!isEth(cp)) return;
+
+    const base = baseOf(cp);
+    const baseChar = String.fromCodePoint(base);
+
+    // root char for grouping (reverse from W base if needed)
+    const rootChar = wSeriesRev.get(baseChar) || baseChar;
+    const group = baseToGroup.get(rootChar);
+    if (!group || group.length < 2) return;
+
+    const [root, sub] = group;
+    const wBaseOf = (c)=>{ const m=wSeriesBaseMap.get(c); return m?m.codePointAt(0):(c.codePointAt(0)+7); };
+
+    const cpBase  = root.codePointAt(0);
+    const cpSub   = sub.codePointAt(0);
+    const cpBaseW = wBaseOf(root);
+    const cpSubW  = wBaseOf(sub);
+
+    const anchors = [cpSub, cpBaseW, cpSubW, cpBase]; // 1 → 2 → 3 → 0
+    if (!anchors.includes(cp)) return; // not at an anchor → do nothing
+
+    const idx = anchors.indexOf(cp);
+    const next = anchors[(idx+1) % anchors.length];
+    arr[i] = String.fromCodePoint(next);
+    out.textContent = arr.join("");
+  }
+
+  // Intercept NEXT clicks (prevent old handler if any), then anchor-cycle only
+  kb.addEventListener('click', function(ev){
+    const btn = ev.target.closest('[data-role="next"]');
+    if (!btn) return;
+    ev.preventDefault(); ev.stopPropagation();
+    cycleAnchorOnce();
+    try{ if (typeof updatePreviews==='function') updatePreviews(); }catch(e){}
+  }, true);
+})();
+</script>
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  function isIdle(){
+    const t = out.textContent || "";
+    if (!t) return true;
+    return /\s$/.test(t) && !/[\u1200-\u137F]/.test(t.slice(0,-1)); // trailing space with no Ethiopic before it
+  }
+
+  function paintIdleGray(){
+    const gray = '#999';
+    const setColor = sel => { const el = kb.querySelector(sel); if (el) el.style.color = gray; };
+    // labels unchanged (use whatever initial glyphs are in DOM), only color = gray
+    setColor('[data-role="next"] .lbl');
+    setColor('[data-role="k"] .lbl');
+    ['U','I','O','J','L'].forEach(k => setColor(`[data-vowel="${k}"] .lbl`));
+    const hint = kb.querySelector('[data-role="next"] .hint-circle'); if (hint) hint.style.display = 'block';
+    const wh = kb.querySelector('[data-role="next"] .w-hint'); if (wh) wh.style.display = 'block';
+  }
+
+  function ensureIdleOnLoad(){
+    if (isIdle()) paintIdleGray();
+  }
+
+  // Run at DOM ready & load, after other modules
+  document.addEventListener('DOMContentLoaded', ensureIdleOnLoad);
+  window.addEventListener('load', ensureIdleOnLoad);
+})();
+</script>
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  let kClickedAt = 0;
+  kb.addEventListener('click', (ev)=>{
+    const k = ev.target.closest('[data-role="k"]');
+    if (k) kClickedAt = Date.now();
+  }, true);
+
+  function justClickedK(){
+    return (Date.now() - kClickedAt) < 400; // within 400ms
+  }
+
+  function sanitizeLeadingE(){
+    const t = out.textContent || "";
+    if (t.length >= 1 && t.charAt(0) === 'እ' && !justClickedK()){
+      // Remove ONLY the very first እ once, keep rest intact
+      out.textContent = t.slice(1);
+    }
+  }
+
+  // Sanitize on first mutations
+  out.addEventListener('input', sanitizeLeadingE);
+  out.addEventListener('keyup', sanitizeLeadingE);
+})();
+</script>
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  function isIdle(){
+    const t = out.textContent || "";
+    if (!t) return true;
+    const endsSpace = /\s$/.test(t);
+    const hasEth = /[\u1200-\u137F]/.test(t);
+    const before = t.slice(0,-1);
+    const hasEthBefore = /[\u1200-\u137F]/.test(before);
+    return (!hasEth) || (endsSpace && !hasEthBefore);
+  }
+
+  function colorIdleGray(){
+    const gray = '#999';
+    const sel = s => kb.querySelector(s);
+    if (isIdle()){
+      const arr = ['U','I','O','J','L'];
+      const kLbl = sel('[data-role="k"] .lbl'); if (kLbl) kLbl.style.color = gray;
+      arr.forEach(v => { const el = sel(`[data-vowel="${v}"] .lbl`); if (el) el.style.color = gray; });
+      const nLbl = sel('[data-role="next"] .lbl'); if (nLbl) nLbl.style.color = gray;
+      const hint = sel('[data-role="next"] .hint-circle'); if (hint) hint.style.display = 'block';
+      const wh = sel('[data-role="next"] .w-hint'); if (wh) wh.style.display = 'block';
+    }
+  }
+
+  function safe(){ try{ colorIdleGray(); }catch(e){} }
+
+  // run after clicks and keyups to fight any premature blue
+  document.addEventListener('click', ()=> setTimeout(safe, 0));
+  out.addEventListener('input', ()=> setTimeout(safe, 0));
+  out.addEventListener('keyup',  ()=> setTimeout(safe, 0));
+  window.addEventListener('load', safe);
+})();
+</script>
+
+<script>
+(function(){
+  const kb = document.getElementById('kb');
+  const out = document.getElementById('editor');
+  if (!kb || !out) return;
+
+  function isIdle(){ const t = out.textContent || ""; return t.length === 0 || /\s$/.test(t); }
+  function paintIdleIfNeeded(){
+    if (!isIdle()) return;
+    const gray = '#999';
+    const sel = s => kb.querySelector(s);
+    ['U','I','O','J','L'].forEach(v => { const el = sel(`[data-vowel="${v}"] .lbl`); if (el) el.style.color = gray; });
+    const kLbl = sel('[data-role="k"] .lbl');   if (kLbl) kLbl.style.color = gray;
+    const nLbl = sel('[data-role="next"] .lbl');if (nLbl) nLbl.style.color = gray;
+    const hint = sel('[data-role="next"] .hint-circle'); if (hint) hint.style.display = 'block';
+    const wh = sel('[data-role="next"] .w-hint'); if (wh) wh.style.display = 'block';
+  }
+
+  function safe(){ try{ paintIdleIfNeeded(); }catch(e){} }
+  // Run after typical interactions
+  document.addEventListener('click', ()=> setTimeout(safe, 0));
+  out.addEventListener('input', ()=> setTimeout(safe, 0));
+  out.addEventListener('keyup',  ()=> setTimeout(safe, 0));
+  window.addEventListener('load', safe);
+})();
+</script>
+
+<script>
+(function(){
+  const out = document.getElementById('editor');
+  if (!out) return;
+  function killStrayLeadingE(){
+    const t = out.textContent || "";
+    if (t.startsWith('እ') && !/^[\u1200-\u137F]/.test(t.slice(1))){
+      // If first is እ and the next isn't Ethiopic (or doesn't exist), drop the first እ once.
+      out.textContent = t.slice(1);
+    }
+  }
+  out.addEventListener('input', ()=> setTimeout(killStrayLeadingE, 0));
+})();
+</script>
+<script>
+(function(){
+  const btn   = document.getElementById('helpBtn');
+  const modal = document.getElementById('helpModal');
+  const close = document.getElementById('helpClose');
+
+  if (btn && modal) {
+    btn.addEventListener('click', ()=>{
+      modal.style.display = 'flex';
+    });
+  }
+  if (close && modal) {
+    close.addEventListener('click', ()=>{
+      modal.style.display = 'none';
+    });
+  }
+  // 모달 바깥 클릭 시 닫기
+  if (modal) {
+    modal.addEventListener('click', (e)=>{
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
