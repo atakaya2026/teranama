@@ -9,12 +9,12 @@
 <style>
   :root{
     /* 기존 레이아웃 변수 */
-    --row1-top: 31%;
-    --row2-top: 48%;
-    --row3-top: 65%;
-    --row4-top: calc(var(--row3-top) + var(--row-height));
-    --row-height: 14%;
-    --row4-height: 13%;
+    --row1-top: 3.1%;
+    --row2-top: 27.5%;
+    --row3-top: 51.8%;
+    --row4-top: 76.2%;
+    --row-height: 19.8%;
+    --row4-height: 20.0%;
     --enter-w: 25.6%; /* ≈ 2.3/9 of full width */
     --row-bleed: 3%;
 
@@ -27,13 +27,34 @@
     --next-y: 7px;           /* 다음키 Y 오프셋 */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:transparent;font-family:"Noto Sans Ethiopic",system-ui,-apple-system,Arial,sans-serif;height:100vh;display:flex;flex-direction:column}
+  html, body {
+    margin: 0; height: 100%;
+    background: #6b7280;
+    font-family: "Noto Sans Ethiopic", system-ui, -apple-system, Arial, sans-serif;
+    display: flex; justify-content: center; align-items: flex-end; overflow: hidden;
+  }
 
-  #editor{
-    flex:1;width:100%;max-width:560px;min-height:120px;margin:16px auto 10px;padding:14px;
-    font-size:22px;line-height:1.55;word-break:break-word;background:#fff;border-radius:14px;
-    box-shadow:0 2px 10px rgba(0,0,0,.06);outline:none;white-space: pre-wrap;position: fixed;
-    top:10px;left:0;right:0;max-width:560px;margin:auto;
+  #phone-wrap {
+    width: min(100%, 480px); height: 100%;
+    display: flex; flex-direction: column; background: #e8e4dc;
+    box-shadow: 0 -5px 40px rgba(0,0,0,0.5); position: relative;
+    overflow: hidden;
+  }
+
+  #action-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: #2d3748; border-bottom: 2px solid #4a90d9;
+    flex-shrink: 0;
+  }
+  #action-bar .title { color: #fff; font-size: 15px; font-weight: bold; }
+  .reset-btn { padding: 5px 12px; background: #4a5568; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; }
+
+  #editor {
+    flex: 1; min-height: 0; width: 100%; background: #faf7f2; padding: 16px 20px;
+    font-size: 24px; line-height: 1.55; word-break: break-word;
+    border: none; outline: none; white-space: pre-wrap; overflow-y: auto;
+    position: static; max-width: none; margin: 0; border-radius: 0;
+    box-shadow: none;
   }
   #editor::after{
     content:"";display:inline-block;width:2px;height:1em;background:#000;margin-left:1px;
@@ -41,7 +62,12 @@
   }
   @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 
-  .frame{position:fixed;bottom:0;left:0;right:0;width:100%;aspect-ratio:375/300;background:transparent url("img/mobileframe.png") no-repeat center bottom/contain}
+  .frame {
+    position: relative; width: 100%; flex-shrink: 0; line-height: 0;
+  }
+  .frame > img.frame-bg {
+    width: 100%; display: block; pointer-events: none;
+  }
   .row{position:absolute;left:0;right:0;height:calc(var(--row-height) + var(--row-bleed));margin-top:calc(var(--row-bleed)/-2);display:grid;grid-template-columns:repeat(9,1fr);place-items:center}
   .row1{top:var(--row1-top)} .row2{top:var(--row2-top)} .row3{top:var(--row3-top)}
   .row4{position:absolute;left:0;right:0;top:var(--row4-top);height:var(--row4-height);display:grid;grid-template-columns: calc(100% - var(--enter-w)) var(--enter-w);place-items:center}
@@ -145,8 +171,15 @@
 
 </head>
 <body>
-  <button id="helpBtn" aria-label="도움말" style="position:fixed;right:12px;top:12px;z-index:50;border:0;background:#fff;border-radius:999px;box-shadow:0 4px 12px rgba(0,0,0,.12);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer">?</button>
-  <div id="helpModal" style="position:fixed;inset:0;background:rgba(0,0,0,.3);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:49">
+<div id="phone-wrap">
+  <div id="action-bar">
+    <span class="title">ተራናማ</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="helpBtn" aria-label="도움말" style="border:0;background:#4a5568;color:#fff;border-radius:999px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;">?</button>
+      <button class="reset-btn" onclick="document.getElementById('editor').textContent=''; try{updatePreviews();}catch(e){}">↺ Clear</button>
+    </div>
+  </div>
+  <div id="helpModal" style="position:absolute;inset:0;background:rgba(0,0,0,.3);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:49">
     <div style="background:#fff;border-radius:12px;max-width:420px;width:86%;box-shadow:0 20px 50px rgba(0,0,0,.2)">
       <div style="padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
         <strong>ፈጣን መመሪያ</strong>
@@ -165,6 +198,7 @@
   <div id="editor" contenteditable="true" spellcheck="false" aria-label="메모장"></div>
 
   <div class="frame" id="kb">
+    <img class="frame-bg" src="img/mobileframe.png" alt="">
     <!-- 1행: (라벨은 참고용) -->
     <div class="row row1">
       <button class="key noLabel"><span class="lbl">ገጘ</span></button>
@@ -1065,5 +1099,6 @@ function updatePreviews(){
 })();
 </script>
 
+</div><!-- /phone-wrap -->
 </body>
 </html>
